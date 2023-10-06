@@ -19,7 +19,7 @@ from optim.LRScheduler import LinearLR, LinearWarmupAndCosineAnneal
 
 
 def get_optimizers(model, args,
-                   opt='lars', lr=1.2,
+                   opt='lars', LR=1.2,
                    lr_scheduler='warmup-anneal',
                    momentum=0.9, warmup=0.01, betas=(0.9, 0.999),
                    weight_decay=1.0e-06, decay_list=None,
@@ -76,25 +76,25 @@ def get_optimizers(model, args,
     if opt == 'sgd':
         optimizer = torch.optim.SGD(
             param_groups,
-            lr=lr,
+            lr=LR,
             momentum=momentum,
         )
     elif opt == 'adam':
         optimizer = torch.optim.Adam(
             param_groups,
-            lr=lr,
+            lr=LR,
             betas=betas,
         )
     elif opt == 'rmsprop':
         optimizer = torch.optim.RMSprop(
             param_groups,
-            lr=lr,
+            lr=LR,
             momentum=momentum
         )
     elif opt == 'lars':
         optimizer = torch.optim.SGD(
             param_groups,
-            lr=lr,
+            lr=LR,
             momentum=momentum,
         )
         lars_optimizer = LARS(optimizer)

@@ -8,61 +8,19 @@ import xlrd
 
 
 class ConfusionMatrix(object):
-    def __init__(self, num_classes: int, labels: list, device: str, normalize=True):
-        self.matrix = np.zeros((num_classes, num_classes), dtype="float32")
+    """
+    注意，如果显示的图像不全，是matplotlib版本问题
+    本例程使用matplotlib-3.2.1(windows and ubuntu)绘制正常
+    需要额外安装prettytable库
+    """
+    def __init__(self, num_classes: int, labels: list):
+        self.matrix = np.zeros((num_classes, num_classes))
         self.num_classes = num_classes
         self.labels = labels
-        self.device = device
-        self.normalize = normalize
 
     def update(self, preds, labels):
-        for t, p in zip(labels, preds):
-            self.matrix[t, p] += 1
-
-    def getMatrix(self, normalize=True):
-        """
-        if normalize=True, matrix is in percentage form
-        if normalize=False, matrix is in numerical  form
-        """
-        if normalize:
-            per_sum = self.matrix.sum(axis=1)
-            for i in range(self.num_classes):
-                self.matrix[i] = (self.matrix[i] / per_sum[i])
-                self.matrix = np.around(self.matrix, 2)
-                self.matrix[np.isnan(self.matrix)] = 0
-        return self.matrix
-
-    def plot(self):
-        matrix = self.getMatrix(self.normalize)
-        # print("---------Confusion Matrix--------")
-        # print(matrix)
-        plt.figure(figsize=(15, 15))
-        plt.imshow(matrix, cmap=plt.cm.Blues)
-
-        # 设置x轴坐标label
-        plt.xticks(range(self.num_classes), self.labels, rotation=90, fontsize=12)
-        # 设置y轴坐标label
-        plt.yticks(range(self.num_classes), self.labels, fontsize=12)
-        # 显示colorbar
-        plt.colorbar(fraction=0.046, extend='both')
-        plt.xlabel('Predicted Labels')
-        plt.ylabel('True Labels')
-        plt.title('Confusion matrix')
-
-        # 在图中标注数量/概率信息
-        thresh = matrix.max() / 2
-        for x in range(self.num_classes):
-            for y in range(self.num_classes):
-                # 注意这里的matrix[y, x]不是matrix[x, y]
-                info = float(format('%.2f' % matrix[y, x]))
-                plt.text(x, y, info,
-                         fontsize=10,
-                         verticalalignment='center',
-                         horizontalalignment='center',
-                         color="white" if info > thresh else "black")
-        plt.tight_layout()  # 保证图不重叠
-        plt.savefig('plot/' + self.device + '_confusion_matrix.svg', format='svg')
-        plt.show()
+        for p, t in zip(preds, labels):
+            self.matrix[p, t] += 1
 
     def summary(self):
         # calculate accuracy
@@ -71,21 +29,49 @@ class ConfusionMatrix(object):
             sum_TP += self.matrix[i, i]
         acc = sum_TP / np.sum(self.matrix)
         print("the model accuracy is ", acc)
-        print('\n')
 
         # precision, recall, specificity
         table = PrettyTable()
-        table.field_names = ["", "Precision", "Recall", "F1_score"]
+        table.field_names = ["", "Precision", "Recall", "Specificity"]
         for i in range(self.num_classes):
             TP = self.matrix[i, i]
-            FN = np.sum(self.matrix[i, :]) - TP
-            FP = np.sum(self.matrix[:, i]) - TP
-            # TN = np.sum(self.matrix) - TP - FP - FN
+            FP = np.sum(self.matrix[i, :]) - TP
+            FN = np.sum(self.matrix[:, i]) - TP
+            TN = np.sum(self.matrix) - TP - FP - FN
             Precision = round(TP / (TP + FP), 3) if TP + FP != 0 else 0.
             Recall = round(TP / (TP + FN), 3) if TP + FN != 0 else 0.
-            F1_score = round(2 * Precision * Recall / (Precision + Recall), 3) if Precision + Recall != 0 else 0.
-            table.add_row([self.labels[i], Precision, Recall, F1_score])
+            Specificity = round(TN / (TN + FP), 3) if TN + FP != 0 else 0.
+            table.add_row([self.labels[i], Precision, Recall, Specificity])
         print(table)
+
+    def plot(self):
+        matrix = self.matrix
+        print(matrix)
+        plt.imshow(matrix, cmap=plt.cm.Blues)
+
+        # 设置x轴坐标label
+        plt.xticks(range(self.num_classes), self.labels, rotation=45)
+        # 设置y轴坐标label
+        plt.yticks(range(self.num_classes), self.labels)
+        # 显示colorbar
+        plt.colorbar()
+        plt.xlabel('True Labels')
+        plt.ylabel('Predicted Labels')
+        plt.title('Confusion matrix')
+
+        # 在图中标注数量/概率信息
+        thresh = matrix.max() / 2
+        for x in range(self.num_classes):
+            for y in range(self.num_classes):
+                # 注意这里的matrix[y, x]不是matrix[x, y]
+                info = int(matrix[y, x])
+                plt.text(x, y, info,
+                         verticalalignment='center',
+                         horizontalalignment='center',
+                         color="white" if info > thresh else "black")
+        plt.tight_layout()
+        plt.savefig('./test_run/confusion_matrix_{}.png'.format(cfg.arch['name']+cfg.user_id))
+        plt.show()
 
 
 class Table(object):
@@ -113,9 +99,8 @@ class Table(object):
 
     def save_rect(self, path):
         file_path = path + '/result_table.xlsx'
-        # if self.columns_len > 1:
-            # average = (self.data[:, 0] + self.data[:, 1]) / 2.
-            # self.data[:, 3] = average
+        average = (self.data[:, 0] + self.data[:, 1]) / 2.
+        self.data[:, 3] = average
         df = pd.DataFrame(self.data, index=self.index, columns=self.columns)
         # df = pd.DataFrame(self.data, index=self.index, columns=['aug/na', 'na/aug', 'aug/aug', 'average'])
 

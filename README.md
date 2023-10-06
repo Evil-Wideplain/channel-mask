@@ -1,5 +1,5 @@
 # channel-mask
-Code for the paper "Masking Sensor in Contrastive Learning for Human Activity Recognition"
+Code for the paper "A Two-Step Channel Mask Method for Data Augmentation in Contrastive Learning based Human Activity Recognition"
 
 
 ## Related Links

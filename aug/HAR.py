@@ -400,7 +400,7 @@ def random_mask_sense(x, num=1, seed=10, type='drop'):
 def random_mask_feature(x, num, seed=10, type='drop'):
     import numpy as np
     features_num = x.shape[1]
-    # num = int(features_num * num)
+    num = int(features_num * num)
     # random_seed = check_random_state(seed)
     # 这里使用choice，选择的通道依然具有很大的随机性，因此我打算试试确定的随机种子，减免这个的影响
     # features_list = random_seed.choice(features_num, num, replace=False)

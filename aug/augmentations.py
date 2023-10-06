@@ -6,83 +6,80 @@ from aug.IMG import *
 from utils.Util import args_contains
 
 
-def aug(sample, aug_type, args):
-    if aug_type == 'na':
+def aug(sample, ssh_type, args):
+    if ssh_type == 'na':
         return sample
-    elif aug_type == 'shuffle':
+    elif ssh_type == 'shuffle':
         seed = args_contains(args, 'seed', 88)
-        return {'x': shuffle(sample['x'], seed=seed), 'y': sample['y']}
-    elif aug_type == 'jit_scal':
-        scale_sample = scaling(sample['x'], sigma=2)
-        return {'x': torch.from_numpy(scale_sample), 'y': sample['y']}
-    elif aug_type == 'perm_jit':
-        return {'x': jitter(permutation(sample['x'], max_segments=10), sigma=0.8), 'y': sample['y']}
-    elif aug_type == 'resample':
-        return {'x': torch.from_numpy(resample(sample['x'])), 'y': sample['y']}
-    elif aug_type == 'noise':
-        return {'x': jitter(sample['x']), 'y': sample['y']}
-    elif aug_type == 'scale':
-        return {'x': torch.from_numpy(scaling(sample['x'])), 'y': sample['y']}
-    elif aug_type == 'negate':
-        return {'x': negated(sample['x']), 'y': sample['y']}
-    elif aug_type == 't_flip':
-        return {'x': time_flipped(sample['x']), 'y': sample['y']}
-    elif aug_type == 'rotation':
-        if isinstance(multi_rotation(sample['x']), np.ndarray):
-            return {'x': torch.from_numpy(multi_rotation(sample['x'])), 'y': sample['y']}
+        return shuffle(sample, seed=seed)
+    elif ssh_type == 'jit_scal':
+        scale_sample = scaling(sample, sigma=2)
+        return torch.from_numpy(scale_sample)
+    elif ssh_type == 'perm_jit':
+        return jitter(permutation(sample, max_segments=10), sigma=0.8)
+    elif ssh_type == 'resample':
+        return torch.from_numpy(resample(sample))
+    elif ssh_type == 'noise':
+        return jitter(sample)
+    elif ssh_type == 'scale':
+        return torch.from_numpy(scaling(sample))
+    elif ssh_type == 'negate':
+        return negated(sample)
+    elif ssh_type == 't_flip':
+        return time_flipped(sample)
+    elif ssh_type == 'rotation':
+        if isinstance(multi_rotation(sample), np.ndarray):
+            return torch.from_numpy(multi_rotation(sample))
         else:
-            return {'x': multi_rotation(sample['x']), 'y': sample['y']}
-    elif aug_type == 'perm':
-        return {'x': permutation(sample['x'], max_segments=10), 'y': sample['y']}
-    elif aug_type == 't_warp':
-        return {'x': torch.from_numpy(time_warp(sample['x'])), 'y': sample['y']}
-    elif aug_type == 'hfc':
-        fft, fd = generate_high(sample['x'], r=(32, 2), high=True)
-        return {'x': fd, 'y': sample['y']}
-    elif aug_type == 'lfc':
-        fft, fd = generate_high(sample['x'], r=(32, 2), high=False)
-        return {'x': fd, 'y': sample['y']}
-    elif aug_type == 'p_shift':
-        return {'x': ifft_phase_shift(sample['x']), 'y': sample['y']}
-    elif aug_type == 'ap_p':
-        return {'x': ifft_amp_phase_pert(sample['x']), 'y': sample['y']}
-    elif aug_type == 'ap_f':
-        return {'x': ifft_amp_phase_pert_fully(sample['x']), 'y': sample['y']}
-    elif aug_type == 'mask_sense':
+            return multi_rotation(sample)
+    elif ssh_type == 'perm':
+        return permutation(sample, max_segments=10)
+    elif ssh_type == 't_warp':
+        return torch.from_numpy(time_warp(sample))
+    elif ssh_type == 'hfc':
+        fft, fd = generate_high(sample, r=(32, 2), high=True)
+        return fd
+    elif ssh_type == 'lfc':
+        fft, fd = generate_high(sample, r=(32, 2), high=False)
+        return fd
+    elif ssh_type == 'p_shift':
+        return ifft_phase_shift(sample)
+    elif ssh_type == 'ap_p':
+        return ifft_amp_phase_pert(sample)
+    elif ssh_type == 'ap_f':
+        return ifft_amp_phase_pert_fully(sample)
+    elif ssh_type == 'mask_sense':
         num = args_contains(args, 'mask_num', 1.0)
         num = int(num)
         mask_type = args_contains(args, 'mask_type', 'drop')
-        return {'x': random_mask_sense(sample['x'], num, type=mask_type), 'y': sample['y']}
-    elif aug_type == 'mask_sense_list':
+        return random_mask_sense(sample, num, type=mask_type)
+    elif ssh_type == 'mask_sense_list':
         lis = args_contains(args, 'mask_list', '0,')
         lis = lis.split(',')
         lis = list(map(int, lis))
-        return {'x': mask_sense(sample['x'], lis), 'y': sample['y']}
-    elif aug_type == 'mask_sense_rate':
+        return mask_sense(sample, lis)
+    elif ssh_type == 'mask_sense_rate':
         rate = args_contains(args, 'mask_num', 1.0)
         rate = float(rate)
         channels = args_contains(args, 'n_features', 9)
         mask_type = args_contains(args, 'mask_type', 'drop')
         num = int(np.ceil(rate * channels))
-        return {'x': random_mask_sense(sample['x'], num, type=mask_type), 'y': sample['y']}
-    elif aug_type == 'mask_features':
-        rate = args_contains(args, 'mask_num', 1.0)
-        rate = float(rate)
-        timeSteps = args_contains(args, 'n_timesteps', 128)
+        return random_mask_sense(sample, num, type=mask_type)
+    elif ssh_type == 'mask_features':
+        num = args_contains(args, 'mask_num', 0.1)
         mask_type = args_contains(args, 'mask_type', 'drop')
-        num = int(np.ceil(rate * timeSteps))
-        return {'x': random_mask_feature(sample['x'], num, type=mask_type), 'y': sample['y']}
-    elif aug_type == 'insert_noise':
+        return random_mask_feature(sample, num, type=mask_type)
+    elif ssh_type == 'insert_noise':
         alpha = args_contains(args, 'noise_alpha', 0.2)
-        return {'x': insert_noise(sample['x'], alpha=alpha), 'y': sample['y']}
+        return insert_noise(sample, alpha=alpha)
     else:
         print('The task is not available!\n')
         return sample
 
 
-def gen_aug(sample, aug_type, args):
-    aug_type = aug_type.split(',')
-    for ssh in aug_type:
+def gen_aug(sample, ssh_type, args):
+    ssh_type = ssh_type.split(',')
+    for ssh in ssh_type:
         sample = aug(sample, ssh, args)
     return sample
 
@@ -90,7 +87,6 @@ def gen_aug(sample, aug_type, args):
 def shuffle(x, seed=21):
     sample_ssh = []
     for data in x:
-        # permutation 重排
         p = np.random.RandomState(seed=seed).permutation(data.shape[1])
         data = data[:, p]
         sample_ssh.append(data)
@@ -104,8 +100,7 @@ def jitter(x, sigma=0.8):
 
 def scaling(x, sigma=1.1):  # apply same distortion to the signals from each sensor
     # https://arxiv.org/pdf/1706.00527.pdf
-    factor = np.random.normal(
-        loc=2., scale=sigma, size=(x.shape[0], x.shape[1]))
+    factor = np.random.normal(loc=2., scale=sigma, size=(x.shape[0], x.shape[1]))
     ai = []
     for i in range(x.shape[2]):
         xi = x[:, :, i]
@@ -130,13 +125,10 @@ def permutation(x, max_segments=5, seg_mode="random"):
     for i, pat in enumerate(x):
         if num_segs[i] > 1:
             if seg_mode == "random":
-                # 随机选择一些位置的组合在一起形成几份
-                split_points = np.random.choice(
-                    x.shape[1] - 2, num_segs[i] - 1, replace=False)
+                split_points = np.random.choice(x.shape[1] - 2, num_segs[i] - 1, replace=False)
                 split_points.sort()
                 splits = np.split(orig_steps, split_points)
             else:
-                # 不等划分 将一组数据划分为 num_segs[i]份 按照顺序来自动分成几份
                 splits = np.array_split(orig_steps, num_segs[i])
             np.random.shuffle(splits)
             warp = np.concatenate(splits).ravel()
@@ -222,18 +214,15 @@ def time_warp(X, sigma=0.2, num_knots=4):
     Stretching and warping the time-series
     """
     time_stamps = np.arange(X.shape[1])
-    knot_xs = np.arange(0, num_knots + 2, dtype=float) * \
-        (X.shape[1] - 1) / (num_knots + 1)
-    spline_ys = np.random.normal(loc=1.0, scale=sigma, size=(
-        X.shape[0] * X.shape[2], num_knots + 2))
+    knot_xs = np.arange(0, num_knots + 2, dtype=float) * (X.shape[1] - 1) / (num_knots + 1)
+    spline_ys = np.random.normal(loc=1.0, scale=sigma, size=(X.shape[0] * X.shape[2], num_knots + 2))
 
     spline_values = np.array(
         [get_cubic_spline_interpolation(time_stamps, knot_xs, spline_ys_individual) for spline_ys_individual in
          spline_ys])
 
     cumulative_sum = np.cumsum(spline_values, axis=1)
-    distorted_time_stamps_all = cumulative_sum / \
-        cumulative_sum[:, -1][:, np.newaxis] * (X.shape[1] - 1)
+    distorted_time_stamps_all = cumulative_sum / cumulative_sum[:, -1][:, np.newaxis] * (X.shape[1] - 1)
 
     X_transformed = np.empty(shape=X.shape)
     for i, distorted_time_stamps in enumerate(distorted_time_stamps_all):
@@ -266,8 +255,7 @@ def generate_high(sample, r, high=True):
     mask = mask_radial(torch.zeros([images.shape[2], images.shape[3]]), r)
     bs, c, h, w = images.shape
     x = images.reshape([bs * c, h, w])
-    # shift: low f in the center
-    fd = torch.fft.fftshift(torch.fft.fftn(x, dim=(-2, -1)))
+    fd = torch.fft.fftshift(torch.fft.fftn(x, dim=(-2, -1)))  # shift: low f in the center
     mask = mask.unsqueeze(0).repeat([bs * c, 1, 1])
     if high:
         fd = fd * (1. - mask)
@@ -291,14 +279,12 @@ def ifft_phase_shift(sample):
 
     # phase shift
     angles = np.repeat(
-        np.expand_dims(np.random.uniform(low=-np.pi, high=np.pi,
-                       size=(sample.shape[0], sample.shape[1])), axis=2),
+        np.expand_dims(np.random.uniform(low=-np.pi, high=np.pi, size=(sample.shape[0], sample.shape[1])), axis=2),
         sample.shape[2], axis=2)
     phase = phase + angles
 
     cmp = amp * torch.exp(1j * phase)
-    ifft = torch.squeeze(torch.real(torch.fft.ifftn(
-        torch.fft.ifftshift(cmp), dim=(-2, -1))).reshape([bs, c, h, w]))
+    ifft = torch.squeeze(torch.real(torch.fft.ifftn(torch.fft.ifftshift(cmp), dim=(-2, -1))).reshape([bs, c, h, w]))
 
     return ifft
 
@@ -318,18 +304,16 @@ def ifft_amp_phase_pert(sample):
 
     # phase shift
     angles = np.repeat(
-        np.expand_dims(np.random.uniform(low=-np.pi, high=np.pi,
-                       size=(sample.shape[0], sample.shape[1])), axis=2),
+        np.expand_dims(np.random.uniform(low=-np.pi, high=np.pi, size=(sample.shape[0], sample.shape[1])), axis=2),
         sample.shape[2], axis=2)
     phase[:, start:end, :] = phase[:, start:end, :] + angles[:, start:end, :]
 
     # amp shift
     amp[:, start:end, :] = amp[:, start:end, :] + \
-        np.random.normal(loc=0., scale=0.8, size=sample.shape)[:, start:end, :]
+                           np.random.normal(loc=0., scale=0.8, size=sample.shape)[:, start:end, :]
 
     cmp = amp * torch.exp(1j * phase)
-    ifft = torch.squeeze(torch.real(torch.fft.ifftn(
-        torch.fft.ifftshift(cmp), dim=(-2, -1))).reshape([bs, c, h, w]))
+    ifft = torch.squeeze(torch.real(torch.fft.ifftn(torch.fft.ifftshift(cmp), dim=(-2, -1))).reshape([bs, c, h, w]))
 
     return ifft
 
@@ -345,8 +329,7 @@ def ifft_amp_phase_pert_fully(sample):
 
     # phase shift
     angles = np.repeat(
-        np.expand_dims(np.random.uniform(low=-np.pi, high=np.pi,
-                       size=(sample.shape[0], sample.shape[1])), axis=2),
+        np.expand_dims(np.random.uniform(low=-np.pi, high=np.pi, size=(sample.shape[0], sample.shape[1])), axis=2),
         sample.shape[2], axis=2)
     phase = phase + angles
 
@@ -354,7 +337,6 @@ def ifft_amp_phase_pert_fully(sample):
     amp = amp + np.random.normal(loc=0., scale=0.8, size=sample.shape)
 
     cmp = amp * torch.exp(1j * phase)
-    ifft = torch.squeeze(torch.real(torch.fft.ifftn(
-        torch.fft.ifftshift(cmp), dim=(-2, -1))).reshape([bs, c, h, w]))
+    ifft = torch.squeeze(torch.real(torch.fft.ifftn(torch.fft.ifftshift(cmp), dim=(-2, -1))).reshape([bs, c, h, w]))
 
     return ifft

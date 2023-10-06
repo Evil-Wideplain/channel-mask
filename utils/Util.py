@@ -10,6 +10,7 @@ import pandas as pd
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 
 def set_seed(seed):
@@ -17,11 +18,10 @@ def set_seed(seed):
         import torch
         torch.manual_seed(seed)
         if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
             torch.cuda.manual_seed_all(seed)
+            torch.backends.cudnn.deterministic = True
             # 模型结构保持不变，输入大小保持不变，能使得cudNN能够计算许多不同的卷积计算方法，然后使用最快的方法
             torch.backends.cudnn.benchmark = True
-            torch.backends.cudnn.deterministic = True
     except Exception as e:
         print("Set seed failed,details are ", e)
         pass
@@ -32,21 +32,8 @@ def set_seed(seed):
     python_random.seed(seed)
     # cuda env
     import os
-    os.environ['PYTHONHASHSEED'] = str(seed)
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
-
-
-def seed_torch(seed=1029):
-    import random as pyton_random
-    pyton_random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
 
 
 def add_data_parameter(parser):
@@ -59,8 +46,6 @@ def add_data_parameter(parser):
     parser.add_argument('--val_iters', default=0, type=int)
     parser.add_argument('--test_iters', default=0, type=int)
     parser.add_argument('--temperature', default=0.1, type=float)
-    parser.add_argument('--multiplier', default=1, type=int,
-                        help="data process need, data augmentation if need in dataloader")
     # num_workers 最好的是GPU数量的2倍 用的单卡跑的代码，那么就是2
     parser.add_argument('--workers', default=0, type=int)
     # pin_memory
@@ -69,26 +54,28 @@ def add_data_parameter(parser):
     parser.add_argument('--n_timesteps', default=128, type=int)
     parser.add_argument('--n_features', default=9, type=int)
     parser.add_argument('--n_class', default=6, type=int)
-    # 如果要将时序数据转图像
-    parser.add_argument('--toImage', default=False, type=bool)
-    parser.add_argument('--n_width', default=64, type=int)
-    parser.add_argument('--n_height', default=64, type=int)
+
 
     # augmentation
-    parser.add_argument('--aug1', type=str, default='resample,mask_sense',
+    parser.add_argument('--aug1', type=str, default='resample',
+                        # choices=['na', 'noise', 'scale', 'negate', 'perm', 'shuffle', 't_flip', 't_warp', 'resample',
+                        #          'rotation', 'perm_jit', 'jit_scal', 'hfc', 'lfc', 'p_shift', 'ap_p', 'ap_f',
+                        #          'mask_sense', 'mask_features', 'mask_sense_features'],
                         help='the type of augmentation transformation')
-    parser.add_argument('--aug2', type=str, default='resample,mask_sense',
+    parser.add_argument('--aug2', type=str, default='jit_scal',
+                        # choices=['na', 'noise', 'scale', 'negate', 'perm', 'shuffle', 't_flip', 't_warp', 'resample',
+                        #          'rotation', 'perm_jit', 'jit_scal', 'hfc', 'lfc', 'p_shift', 'ap_p', 'ap_f',
+                        #          'mask_sense', 'mask_features', 'mask_sense_features'],
                         help='the type of augmentation transformation')
     # sense feature mask
     parser.add_argument('--mask_num', default=1.0, type=float)
-    parser.add_argument('--mask_type', default='drop',
-                        type=str, choices=['drop', 'noise'])
+    parser.add_argument('--mask_type', default='drop', type=str, choices=['drop', 'noise'])
     parser.add_argument('--mask_list', default="0,", type=str)
     # test with aug
     parser.add_argument('--test_aug', default=False, type=bool)
+
     # insert_noise
     parser.add_argument('--noise_alpha', default=0.2, type=float)
-
     return parser
 
 
@@ -102,46 +89,64 @@ def add_optimizer_parameter(parser):
     parser.add_argument('--warmup', default=0.01, type=float)
     parser.add_argument('--weight_decay', default=1.e-06, type=float)
     parser.add_argument('--lr_scheduler', default='const', type=str)
-    parser.add_argument('--decay_list', default=' ', type=str)
     return parser
 
 
 def add_framework_parameter(parser):
-    # encoder
-    parser.add_argument('--framework', default='simclr', type=str,
-                        choices=['byol', 'simsiam', 'simclr', 'nnclr', 'tstcc', 'sl'])
-    parser.add_argument('--backbone', default='FCN', type=str,
-                        choices=['FCN'])
-    parser.add_argument('--criterion', type=str, default='NTXent',
-                        choices=['NTXent'])
-    parser.add_argument('--p', type=int, default=128,
-                        help='byol: projector size, simsiam: projector output size, simclr: projector output size')
-    parser.add_argument('--phid', type=int, default=128,
-                        help='byol: projector hidden size, simsiam: predictor hidden size, simclr: na')
+    # byol
+    parser.add_argument('--lr_mul', type=float, default=10.0,
+                        help='lr multiplier for the second optimizer when training byol')
+    parser.add_argument('--EMA', type=float, default=0.996, help='exponential moving average parameter')
+
+    # nnclr
+    parser.add_argument('--mmb_size', type=int, default=1024, help='maximum size of NNCLR support set')
+
+    # TS-TCC
+    parser.add_argument('--lambda1', type=float, default=1.0, help='weight for temporal contrastive loss')
+    parser.add_argument('--lambda2', type=float, default=1.0,
+                        help='weight for contextual contrastive loss, also used as the weight for reconstruction loss when AE or CAE being backbone network')
+    parser.add_argument('--temp_unit', type=str, default='tsfm', choices=['tsfm', 'lstm', 'blstm', 'gru', 'bgru'],
+                        help='temporal unit in the TS-TCC')
     return parser
 
 
-def add_other_parameters(parser):
-    parser.add_argument('--distance', default='euclid', type=str,
-                        choices=['euclid', 'manhattan', 'cosine_similarity'])
-    parser.add_argument('--acc', default=0.0, type=float)
-    parser.add_argument('--best_acc', default=0.0, type=float)
+def add_svm_cluster_parameters(parser):
+    # svm and cluster方法
+    parser.add_argument('--w_s', default=1.0, type=float)
+    parser.add_argument('--w_c', default=1.0, type=float)
+    # 聚类相关参数
+    parser.add_argument('--cluster_name', default='kmeans++', type=str)
+    parser.add_argument('--n_init', default=10, type=int)
+    parser.add_argument('--max_iter', default=300, type=int)
+    parser.add_argument('--tol', default=1e-4, type=float)
+    # 10.0 0.1
+    parser.add_argument('--sigma', default=0.1, type=int)
+    parser.add_argument('--kernel_type', default='rbf', type=str)
+    parser.add_argument('--reg', default=0.1, type=float)
+    parser.add_argument('--C', default=2, type=int)
+    parser.add_argument('--anchor_count', default=2, type=int)
+    parser.add_argument('--solver_type', default='nesterov', type=str, choices=['nesterov', 'vanilla'])
+    parser.add_argument('--eta', default=1e-3, type=float)
+    parser.add_argument('--num_iter', default=1000, type=int)
+    parser.add_argument('--nesterov', default=False, type=bool)
+    #
+    parser.add_argument('--use_norm', default=True, type=bool)
+    parser.add_argument('--stop_condition', default=1e-2, type=float)
+
     return parser
 
 
 def init_parameters(args=None, parent_parser=None):
     import argparse
     if parent_parser is None:
-        parser = argparse.ArgumentParser(
-            description="self-supervised cluster for HAR")
+        parser = argparse.ArgumentParser(description="self-supervised cluster for HAR")
     else:
         parser = parent_parser
     # parser.add_argument('--type', default='train', type=str, choices=['train', 'fine', 'linear', 'supervised'])
     parser.add_argument('--time', default='now', type=str)
     parser.add_argument('--version', default='cluster', type=str)
     parser.add_argument('--GPU', default=1, type=int)
-    parser.add_argument('--device', default='Phones',
-                        choices=['Phones', 'Watch'], type=str)
+    parser.add_argument('--device', default='Phones', choices=['Phones', 'Watch'], type=str)
     parser.add_argument('--save', default=True, type=bool)
     parser.add_argument('--save_path', default='./xieqi', type=str)
     parser.add_argument('--model_path', default='', type=str)
@@ -152,19 +157,34 @@ def init_parameters(args=None, parent_parser=None):
     parser.add_argument('--batch_size', default=1024, type=int)
     parser.add_argument('--epochs', default=200, type=int)
     parser.add_argument('--t_epoch', default=0, type=int, help="用来描述的当前的epoch")
+    parser.add_argument('--multiplier', default=1, type=int)
     # cls
     parser.add_argument('--fine_epochs', default=200, type=int)
-    parser.add_argument('--f_epoch', default=0,
-                        type=int, help="用来描述的当前微调的epoch")
-    parser.add_argument('--f_itr', default=0, type=int,
-                        help="记录dataloader的第几个batch,怎么会有人这样做呢？")
+    parser.add_argument('--f_epoch', default=0, type=int, help="用来描述的当前微调的epoch")
+    parser.add_argument('--f_itr', default=0, type=int, help="记录dataloader的第几个batch,怎么会有人这样做呢？")
     parser.add_argument('--val_batch_size', default=64, type=int)
     parser.add_argument('--test_batch_size', default=2048, type=int)
+
+    # encoder
+    parser.add_argument('--framework', default='simclr', type=str,
+                        choices=['byol', 'simsiam', 'simclr', 'nnclr', 'tstcc'])
+    parser.add_argument('--backbone', default='TPN', type=str,
+                        choices=['TPN', 'FCN', 'DCL', 'LSTM', 'AE', 'CNN_AE', 'Transformer'])
+    parser.add_argument('--criterion', type=str, default='cos_sim',
+                        choices=['cos_sim', 'NTXent', 'cluster', 'svm', 'svm_cluster'])
+    parser.add_argument('--p', type=int, default=128,
+                        help='byol: projector size, simsiam: projector output size, simclr: projector output size')
+    parser.add_argument('--phid', type=int, default=128,
+                        help='byol: projector hidden size, simsiam: predictor hidden size, simclr: na')
 
     parser = add_framework_parameter(parser)
     parser = add_data_parameter(parser)
     parser = add_optimizer_parameter(parser)
-    parser = add_other_parameters(parser)
+    parser = add_svm_cluster_parameters(parser)
+
+    parser.add_argument('--distance', default='euclid', type=str, choices=['euclid', 'manhattan', 'cosine_similarity'])
+    parser.add_argument('--acc', default=0.0, type=float)
+    parser.add_argument('--best_acc', default=0.0, type=float)
 
     if args is None:
         args = ""
@@ -346,16 +366,16 @@ def tsne(latent, y_ground_truth, save_dir):
     # y_ground_truth = y_ground_truth.cpu().detach().numpy()
     tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
     tsne_results = tsne.fit_transform(latent)
-    plt.figure(figsize=(16, 10))
+    plt.figure(figsize=(16,10))
     set_y = set(y_ground_truth)
     num_labels = len(set_y)
     sns_plot = sns.scatterplot(
-        x=tsne_results[:, 0], y=tsne_results[:, 1],
+        x=tsne_results[:,0], y=tsne_results[:,1],
         hue=y_ground_truth,
         palette=sns.color_palette("hls", num_labels),
         legend="full",
-        alpha=0.5
-    )
+        alpha = 0.5
+        )
 
     sns_plot.get_figure().savefig(save_dir)
 
@@ -367,16 +387,16 @@ def mds(latent, y_ground_truth, save_dir):
     latent = latent.cpu().detach().numpy()
     mds = MDS(n_components=2)
     mds_results = mds.fit_transform(latent)
-    plt.figure(figsize=(16, 10))
+    plt.figure(figsize=(16,10))
     set_y = set(y_ground_truth)
     num_labels = len(set_y)
     sns_plot = sns.scatterplot(
-        x=mds_results[:, 0], y=mds_results[:, 1],
+        x=mds_results[:,0], y=mds_results[:,1],
         hue=y_ground_truth,
         palette=sns.color_palette("hls", num_labels),
         # data=df_subset,
         legend="full",
         alpha=0.5
-    )
+        )
 
     sns_plot.get_figure().savefig(save_dir)

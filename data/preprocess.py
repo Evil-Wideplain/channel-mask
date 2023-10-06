@@ -8,7 +8,6 @@ import PIL
 import cv2
 import pickle
 import warnings
-import math
 
 from data import data_preprocess_ucihar, data_preprocess_shar, data_preprocess_hhar, data_preprocess_motion, \
     data_preprocess_oppor, data_preprocess_pamap2, data_preprocess_wisdm, data_preprocess_usc, data_preprocess_dsads, \
@@ -213,51 +212,11 @@ class HARLoader():
         return [train_loader], val_loader, test_loader
 
 
-class MultiplyBatchSampler(torch.utils.data.sampler.BatchSampler):
-    def __init__(self, MULTILPLIER, sampler, batch_size, drop_last=True):
-        self.MULTILPLIER = MULTILPLIER
-        # self.sampler = sampler
-        # self.batch_size = batch_size
-        # self.drop_last = drop_last
-        if type(batch_size) != int:
-            batch_size = batch_size.item()
-
-        super().__init__(sampler, int(batch_size), drop_last)
-
-    def __iter__(self):
-        for batch in super().__iter__():
-            # print('sampler check',batch, batch*self.MULTILPLIER)
-            yield batch * self.MULTILPLIER
-
-
-class ContinousSampler(torch.utils.data.sampler.Sampler):
-    def __init__(self, sampler, n_iterations):
-        self.base_sampler = sampler
-        self.n_iterations = n_iterations
-
-    def __iter__(self):
-        cur_iter = 0
-        while cur_iter < self.n_iterations:
-            for batch in self.base_sampler:
-                yield batch
-                cur_iter += 1
-                if cur_iter >= self.n_iterations:
-                    return
-
-    def __len__(self):
-        return self.n_iterations
-
-    def set_epoch(self, epoch):
-        self.base_sampler.set_epoch(epoch)
-
-
 def dataloader(args):
     train_loaders, val_loader, test_loader = None, None, None
     # random 将数据分成三份 train((1-ratio)^2) val((1-ratio)*ratio) test(ratio)
     # random fine 将数据分成三份 train((1-ratio)^2) val((1-ratio)*ratio) test(ratio)
     # subject 输出两个部分 train none test (train test的数据一致)
-    PAA_window_size = args_contains(args, 'PAA_window_size', 2)
-    toImage = args_contains(args, 'toImage', False)
     if args.dataset == 'ucihar':
         args.n_features = 9
         args.n_timesteps = 128
@@ -375,31 +334,26 @@ def dataloader(args):
                                                                               SLIDING_WINDOW_STEP=
                                                                               int(args.n_timesteps*0.5))
 
-    # if args.dataset == 'UCI':
-    #     args.n_features = 9
-    #     args.n_timesteps = 128
-    #     args.n_class = 6
-    #     args.shape = (1, 128, 9)
-    #     loader = HARLoader(args)
-    #     train_loaders, val_loader, test_loader = loader.data_loader()
-    # if args.dataset == 'USC':
-    #     args.n_features = 6
-    #     args.n_timesteps = 200
-    #     args.n_class = 12
-    #     args.shape = (1, 200, 6)
-    #     loader = HARLoader(args)
-    #     train_loaders, val_loader, test_loader = loader.data_loader()
-    # if args.dataset == 'Motion':
-    #     args.n_features = 6
-    #     args.n_timesteps = 200
-    #     args.n_class = 6
-    #     args.shape = (1, 200, 6)
-    #     loader = HARLoader(args)
-    #     train_loaders, val_loader, test_loader = loader.data_loader()
-
-    if toImage:
-        args.n_width = math.floor((args.n_timesteps + 1) / PAA_window_size)
-        args.n_height = math.floor((args.n_timesteps + 1) / PAA_window_size)
-        args.shape = (1, args.n_features, args.n_width, args.n_height)
+    if args.dataset == 'UCI':
+        args.n_features = 9
+        args.n_timesteps = 128
+        args.n_class = 6
+        args.shape = (1, 128, 9)
+        loader = HARLoader(args)
+        train_loaders, val_loader, test_loader = loader.data_loader()
+    if args.dataset == 'USC':
+        args.n_features = 6
+        args.n_timesteps = 200
+        args.n_class = 12
+        args.shape = (1, 200, 6)
+        loader = HARLoader(args)
+        train_loaders, val_loader, test_loader = loader.data_loader()
+    if args.dataset == 'Motion':
+        args.n_features = 6
+        args.n_timesteps = 200
+        args.n_class = 6
+        args.shape = (1, 200, 6)
+        loader = HARLoader(args)
+        train_loaders, val_loader, test_loader = loader.data_loader()
 
     return args, train_loaders, val_loader, test_loader
